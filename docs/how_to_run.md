@@ -25,7 +25,20 @@ Train the model using following command
 
 Here it is assumed that you are in the **cwgan** folder.
 
+#### For training the model for 1000 epoch
+
+The results would be saved in the **checkpoints** directory.
+
 ```python
-python train.py --dataroot ../D-HAZY_DATASET --name DHaze_Dataset_Haze_Removal --model pix2pix --dataset_mode unaligned --no_flip 
+python train.py --dataroot ../D-HAZY_DATASET --name DHaze_Dataset_Haze_Removal --model pix2pix --dataset_mode unaligned --no_flip --niter 900
+
+```
+
+#### For testing the model
+
+The results would be saved in **results** directory.
+
+```python
+python test.py --dataroot ../D-HAZY_DATASET --name DHaze_Dataset_Haze_Removal --model pix2pix --direction AtoB --dataset unaligned --no_flip
 ```
 
