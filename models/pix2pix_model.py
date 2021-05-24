@@ -3,17 +3,22 @@ from .base_model import BaseModel
 from . import networks
 import torchvision
 from torch.autograd import Variable
-from torchsummary import summary 
+from torchsummary import summary
+
+
 class FeatureExtractor(torch.nn.Module):
     def __init__(self, cnn, feature_layer=11):
         super(FeatureExtractor, self).__init__()
-        self.features = torch.nn.Sequential(*list(cnn.features.children())[:(feature_layer+1)])
+        self.features = torch.nn.Sequential(
+            *list(cnn.features.children())[: (feature_layer + 1)]
+        )
 
     def forward(self, x):
         return self.features(x)
 
+
 class Pix2PixModel(BaseModel):
-    """ This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
+    """This class implements the pix2pix model, for learning a mapping from input images to output images given paired data.
 
     The model training requires '--dataset_mode aligned' dataset.
     By default, it uses a '--netG unet256' U-Net generator,
@@ -22,6 +27,7 @@ class Pix2PixModel(BaseModel):
 
     pix2pix paper: https://arxiv.org/pdf/1611.07004.pdf
     """
+
     @staticmethod
     def modify_commandline_options(parser, is_train=True):
         """Add new dataset-specific options, and rewrite default values for existing options.
@@ -38,10 +44,12 @@ class Pix2PixModel(BaseModel):
         By default, we use vanilla GAN loss, UNet with batchnorm, and aligned datasets.
         """
         # changing the default values to match the pix2pix paper (https://phillipi.github.io/pix2pix/)
-        parser.set_defaults(norm='layer', netG='unet_256', dataset_mode='aligned')
+        parser.set_defaults(norm="layer", netG="unet_256", dataset_mode="aligned")
         if is_train:
-            parser.set_defaults(pool_size=0, gan_mode='wgangp')
-            parser.add_argument('--lambda_L1', type=float, default=100.0, help='weight for L1 loss')
+            parser.set_defaults(pool_size=0, gan_mode="wgangp")
+            parser.add_argument(
+                "--lambda_L1", type=float, default=100.0, help="weight for L1 loss"
+            )
 
         return parser
 
@@ -53,32 +61,57 @@ class Pix2PixModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
         # specify the training losses you want to print out. The training/test scripts will call <BaseModel.get_current_losses>
-        self.loss_names = ['G_GAN', 'G_L1','G_VGG','D_grad_penalty','D']
+        self.loss_names = ["G_GAN", "G_L1", "G_VGG", "D_grad_penalty", "D"]
         # specify the images you want to save/display. The training/test scripts will call <BaseModel.get_current_visuals>
-        self.visual_names = ['real_A', 'fake_B', 'real_B']
+        self.visual_names = ["real_A", "fake_B", "real_B"]
         # specify the models you want to save to the disk. The training/test scripts will call <BaseModel.save_networks> and <BaseModel.load_networks>
         if self.isTrain:
-            self.model_names = ['G', 'D']
+            self.model_names = ["G", "D"]
         else:  # during test time, only load G
-            self.model_names = ['G']
+            self.model_names = ["G"]
         # define networks (both generator and discriminator)
-        self.netG = networks.define_G(opt.input_nc, opt.output_nc, opt.ngf, opt.netG, opt.norm,
-                                      not opt.no_dropout, opt.init_type, opt.init_gain, self.gpu_ids)
+        self.netG = networks.define_G(
+            opt.input_nc,
+            opt.output_nc,
+            opt.ngf,
+            opt.netG,
+            opt.norm,
+            not opt.no_dropout,
+            opt.init_type,
+            opt.init_gain,
+            self.gpu_ids,
+        )
         print(summary(self.netG, input_size=(3, 256, 256)))
-        if self.isTrain:  # define a discriminator; conditional GANs need to take both input and output images; Therefore, #channels for D is input_nc + output_nc
-            self.netD = networks.define_D(opt.input_nc + opt.output_nc, opt.ndf, opt.netD,
-                                          opt.n_layers_D, opt.norm, opt.init_type, opt.init_gain, self.gpu_ids)
+        if (
+            self.isTrain
+        ):  # define a discriminator; conditional GANs need to take both input and output images; Therefore, #channels for D is input_nc + output_nc
+            self.netD = networks.define_D(
+                opt.input_nc + opt.output_nc,
+                opt.ndf,
+                opt.netD,
+                opt.n_layers_D,
+                opt.norm,
+                opt.init_type,
+                opt.init_gain,
+                self.gpu_ids,
+            )
 
         if self.isTrain:
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
             self.criterionL1 = torch.nn.L1Loss()
             self.criterionMSE = torch.nn.MSELoss()
-            self.feature_extractor = FeatureExtractor(torchvision.models.vgg19(pretrained=True)).cuda()
+            self.feature_extractor = FeatureExtractor(
+                torchvision.models.vgg19(pretrained=True)
+            ).cuda()
 
             # initialize optimizers; schedulers will be automatically created by function <BaseModel.setup>.
-            self.optimizer_G = torch.optim.Adam(self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
-            self.optimizer_D = torch.optim.Adam(self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999))
+            self.optimizer_G = torch.optim.Adam(
+                self.netG.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
+            )
+            self.optimizer_D = torch.optim.Adam(
+                self.netD.parameters(), lr=opt.lr, betas=(opt.beta1, 0.999)
+            )
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
 
@@ -90,10 +123,10 @@ class Pix2PixModel(BaseModel):
 
         The option 'direction' can be used to swap images in domain A and domain B.
         """
-        AtoB = self.opt.direction == 'AtoB'
-        self.real_A = input['A' if AtoB else 'B'].to(self.device)
-        self.real_B = input['B' if AtoB else 'A'].to(self.device)
-        self.image_paths = input['A_paths' if AtoB else 'B_paths']
+        AtoB = self.opt.direction == "AtoB"
+        self.real_A = input["A" if AtoB else "B"].to(self.device)
+        self.real_B = input["B" if AtoB else "A"].to(self.device)
+        self.image_paths = input["A_paths" if AtoB else "B_paths"]
 
     def forward(self):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
@@ -103,8 +136,9 @@ class Pix2PixModel(BaseModel):
         """Calculate GAN loss for the discriminator"""
         # Fake; stop backprop to the generator by detaching fake_B
 
-
-        fake_AB = torch.cat((self.real_A, self.fake_B), 1)  # we use conditional GANs; we need to feed both input and output to the discriminator
+        fake_AB = torch.cat(
+            (self.real_A, self.fake_B), 1
+        )  # we use conditional GANs; we need to feed both input and output to the discriminator
         pred_fake = self.netD(fake_AB.detach())
         self.loss_D_fake = pred_fake.mean()
         # Real
@@ -112,12 +146,15 @@ class Pix2PixModel(BaseModel):
         pred_real = self.netD(real_AB)
         self.loss_D_real = pred_real.mean()
 
-        gradient_penalty = networks.calc_gradient_penalty(self.netD, real_AB, fake_AB,self.device)
+        gradient_penalty = networks.calc_gradient_penalty(
+            self.netD, real_AB, fake_AB, self.device
+        )
 
         self.loss_D_grad_penalty = gradient_penalty
         # combine loss and calculate gradients
-        self.loss_D = self.loss_D_fake - self.loss_D_real + 10*gradient_penalty
+        self.loss_D = self.loss_D_fake - self.loss_D_real + 10 * gradient_penalty
         self.loss_D.backward()
+
     def backward_G(self):
         """Calculate GAN and L1 loss for the generator"""
         # First, G(A) should fake the discriminator
@@ -129,22 +166,24 @@ class Pix2PixModel(BaseModel):
 
         real_features = Variable(self.feature_extractor(self.real_B).data)
         fake_features = Variable(self.feature_extractor(self.fake_B).data)
-        self.loss_G_VGG = self.criterionMSE(fake_features,real_features)
+        self.loss_G_VGG = self.criterionMSE(fake_features, real_features)
 
         # combine loss and calculate gradients
-        self.loss_G = -pred_fake.mean() + 100*self.loss_G_L1 + 1000*self.loss_G_VGG
+        self.loss_G = -pred_fake.mean() + 100 * self.loss_G_L1 + 1000 * self.loss_G_VGG
         self.loss_G.backward()
 
     def optimize_parameters(self, critic_iters):
-        self.forward()                   # compute fake images: G(A)
+        self.forward()  # compute fake images: G(A)
         # update D
         for i in range(critic_iters):
             self.set_requires_grad(self.netD, True)  # enable backprop for D
-            self.optimizer_D.zero_grad()     # set D's gradients to zero
-            self.backward_D()                # calculate gradients for D
-            self.optimizer_D.step()          # update D's weights
+            self.optimizer_D.zero_grad()  # set D's gradients to zero
+            self.backward_D()  # calculate gradients for D
+            self.optimizer_D.step()  # update D's weights
         # update G
-        self.set_requires_grad(self.netD, False)  # D requires no gradients when optimizing G
-        self.optimizer_G.zero_grad()        # set G's gradients to zero
-        self.backward_G()                   # calculate graidents for G
-        self.optimizer_G.step()             # udpate G's weights
+        self.set_requires_grad(
+            self.netD, False
+        )  # D requires no gradients when optimizing G
+        self.optimizer_G.zero_grad()  # set G's gradients to zero
+        self.backward_G()  # calculate graidents for G
+        self.optimizer_G.step()  # udpate G's weights

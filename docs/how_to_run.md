@@ -1,4 +1,4 @@
-### Files to be used
+### Datasets used
 
 **cwgan** folder can be downloaded from this GitHub repository.
 
@@ -29,9 +29,21 @@ This will combine each pair of images (A,B) into a single image file, ready for 
 
 The results would be saved in the **checkpoints** directory.
 
+For testing just replace **train.py** with **test.py**.
+
+### L1 Loss
+
+> ***G_GAN | G_L1 |  G_VGG |  D_grad_penalty | D*** 
+
 ```python
 python train.py --dataroot /path/to/data --name haze_to_unhaze --niter 60 --niter_decay 40 --model pix2pix --netG unet_256
 ```
 
+### Huber Loss
 
+> ***G_GAN | G_Huber |  G_VGG |  D_grad_penalty | D*** 
+
+```
+python train.py --dataroot /path/to/data --name haze_to_unhaze_loss_huber --niter 60 --niter_decay 40 --model huber_pix2pix --netG unet_256
+```
 
